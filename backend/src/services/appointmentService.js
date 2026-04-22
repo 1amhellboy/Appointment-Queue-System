@@ -15,18 +15,6 @@ export const createAppointment = async ({ clinicId, doctorId, name, phone }) => 
     patient = await Patient.create({ name, phone });
   }
 
-  // 2.5 Check if patient already has active appointment in this queue
-
-const existingAppointment = await Appointment.findOne({
-  patientId: patient._id,
-  queueId: queue._id,
-  status: { $in: ["waiting", "in_progress"] },
-});
-
-if (existingAppointment) {
-  throw new Error("Patient already has an active appointment");
-}
-
   // 2. Get today's date
   const today = getTodayDate();
 
@@ -47,6 +35,17 @@ if (existingAppointment) {
       upsert: true,
     }
   );
+
+  // 3.5 Check if patient already has an active appointment in this queue
+  const existingAppointment = await Appointment.findOne({
+    patientId: patient._id,
+    queueId: queue._id,
+    status: { $in: ["waiting", "in_progress"] },
+  });
+
+  if (existingAppointment) {
+    throw new Error("Patient already has an active appointment");
+  }
 
   // 4. Get new token
   const tokenNumber = queue.lastToken;

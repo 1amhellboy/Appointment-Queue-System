@@ -19,8 +19,6 @@ connectDB();
 
 app.use("/api/v1/auth", authRoutes);
 
-
-
 app.use("/api/v1/appointments", appointmentRoutes);
 
 app.use("/api/v1/queues", queueRoutes);
