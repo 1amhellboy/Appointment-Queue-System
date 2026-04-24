@@ -70,3 +70,56 @@ export const createAppointment = async ({ clinicId, doctorId, name, phone }) => 
     estimatedWaitTime,
   };
 };
+
+
+// ⏭️ Skip Appointment
+export const skipAppointment = async ({ appointmentId }) => {
+  const appointment = await Appointment.findById(appointmentId);
+
+  if (!appointment) {
+    throw new Error("Appointment not found");
+  }
+
+  if (appointment.status === "skipped") {
+    throw new Error("Appointment already skipped");
+  }
+
+  if (appointment.status === "done") {
+    throw new Error("Cannot skip completed appointment");
+  }
+
+  if (!["waiting", "in_progress"].includes(appointment.status)) {
+    throw new Error("Only waiting or in-progress appointments can be skipped");
+  }
+
+  appointment.status = "skipped";
+  await appointment.save();
+
+  return appointment;
+};
+
+// ✅ Complete Appointment
+export const completeAppointment = async ({ appointmentId }) => {
+  const appointment = await Appointment.findById(appointmentId);
+
+  if (!appointment) {
+    throw new Error("Appointment not found");
+  }
+
+  if (appointment.status === "skipped") {
+    throw new Error("Cannot complete skipped appointment");
+  }
+
+  if (appointment.status === "done") {
+    throw new Error("Appointment already completed");
+  }
+
+  if (appointment.status !== "in_progress") {
+    throw new Error("Only in-progress appointments can be completed");
+  }
+
+  appointment.status = "done";
+  await appointment.save();
+
+  return appointment;
+};

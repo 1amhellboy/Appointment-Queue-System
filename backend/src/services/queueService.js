@@ -47,3 +47,47 @@ export const nextPatient = async ({ queueId }) => {
     nextAppointment,
   };
 };
+
+
+export const getQueueAppointments = async ({ queueId, status }) => {
+  const filter = { queueId };
+
+  // Optional filter
+  if (status) {
+    filter.status = status;
+  }
+
+  const appointments = await Appointment.find(filter)
+    .populate("patientId", "name phone")
+    .sort({ tokenNumber: 1 });
+
+  return appointments;
+};
+
+
+const getTodayDate = () => {
+  return new Date().toISOString().split("T")[0];
+};
+
+
+export const getTodayQueue = async ({ clinicId, doctorId }) => {
+  const today = getTodayDate();
+
+  const queue = await Queue.findOneAndUpdate(
+    { doctorId, date: today },
+    {
+      $setOnInsert: {
+        clinicId,
+        doctorId,
+        date: today,
+        avgConsultTime: 10,
+      },
+    },
+    {
+      new: true,
+      upsert: true,
+    }
+  );
+
+  return queue;
+};
