@@ -1,6 +1,4 @@
-import { nextPatient } from "../services/queueService.js";
-import { getQueueAppointments } from "../services/queueService.js";
-import { getTodayQueue } from "../services/queueService.js";
+import { getTodayQueue, getQueueStats, getQueueAppointments, nextPatient } from "../services/queueService.js";
 
 
 export const next = async (req, res) => {
@@ -54,6 +52,24 @@ export const getToday = async (req, res) => {
     res.status(200).json({
       success: true,
       data: queue,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const getStats = async (req, res) => {
+  try {
+    const { queueId } = req.params;
+
+    const data = await getQueueStats({ queueId });
+
+    res.status(200).json({
+      success: true,
+      data,
     });
   } catch (error) {
     res.status(400).json({

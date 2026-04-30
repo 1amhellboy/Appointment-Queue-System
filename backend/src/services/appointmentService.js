@@ -1,6 +1,8 @@
 import Patient from "../models/Patient.js";
 import Queue from "../models/Queue.js";
 import Appointment from "../models/Appointment.js";
+import { io } from "../../server.js";
+
 
 // Helper → get today's date
 const getTodayDate = () => {
@@ -18,7 +20,7 @@ export const createAppointment = async ({ clinicId, doctorId, name, phone }) => 
   // 2. Get today's date
   const today = getTodayDate();
 
-  // 3. Get or create queue (IMPORTANT: upsert)
+  // 3. Get or create queue (without increment)
   const queue = await Queue.findOneAndUpdate(
     { doctorId, date: today },
     {
@@ -28,7 +30,6 @@ export const createAppointment = async ({ clinicId, doctorId, name, phone }) => 
         date: today,
         avgConsultTime: 10, // default
       },
-      $inc: { lastToken: 1 }, // 🔥 atomic increment
     },
     {
       new: true,
@@ -47,14 +48,21 @@ export const createAppointment = async ({ clinicId, doctorId, name, phone }) => 
     throw new Error("Patient already has an active appointment");
   }
 
-  // 4. Get new token
-  const tokenNumber = queue.lastToken;
+  // 4. Increment token only after validations pass
+  const updatedQueue = await Queue.findByIdAndUpdate(
+    queue._id,
+    { $inc: { lastToken: 1 } },
+    { new: true }
+  );
 
-  // 5. Calculate wait time
-  const position = tokenNumber - queue.currentToken;
-  const estimatedWaitTime = position * queue.avgConsultTime;
+  // 5. Get new token
+  const tokenNumber = updatedQueue.lastToken;
 
-  // 6. Create appointment
+  // 6. Calculate wait time
+  const position = tokenNumber - updatedQueue.currentToken;
+  const estimatedWaitTime = position * updatedQueue.avgConsultTime;
+
+  // 7. Create appointment
   const appointment = await Appointment.create({
     clinicId,
     doctorId,
@@ -62,6 +70,16 @@ export const createAppointment = async ({ clinicId, doctorId, name, phone }) => 
     patientId: patient._id,
     tokenNumber,
     estimatedWaitTime,
+  });
+
+  io.to(queue._id.toString()).emit("queueUpdated", {
+    event: "QUEUE_UPDATED",
+    action: "NEW_APPOINTMENT",
+    data: {
+      tokenNumber,
+      queueId: queue._id,
+    },
+    timestamp: Date.now(),
   });
 
   return {
@@ -95,6 +113,17 @@ export const skipAppointment = async ({ appointmentId }) => {
   appointment.status = "skipped";
   await appointment.save();
 
+  io.to(appointment.queueId.toString()).emit("queueUpdated", {
+    event: "QUEUE_UPDATED",
+    action: "STATUS_UPDATED",
+    data: {
+      appointmentId: appointment._id,
+      status: appointment.status,
+      queueId: appointment.queueId,
+    },
+    timestamp: Date.now(),
+  });
+
   return appointment;
 };
 
@@ -120,6 +149,17 @@ export const completeAppointment = async ({ appointmentId }) => {
 
   appointment.status = "done";
   await appointment.save();
+
+  io.to(appointment.queueId.toString()).emit("queueUpdated", {
+    event: "QUEUE_UPDATED",
+    action: "STATUS_UPDATED",
+    data: {
+      appointmentId: appointment._id,
+      status: appointment.status,
+      queueId: appointment.queueId,
+    },
+    timestamp: Date.now(),
+  });
 
   return appointment;
 };
